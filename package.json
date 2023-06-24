@@ -1,0 +1,31 @@
+{
+    "name": "mor4",
+    "version": "1.0.0",
+    "description": "A Discord bot for maintaining custom osu! leaderboards.",
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "lint": "./node_modules/.bin/eslint . --ext .ts --fix",
+        "compile": "tsc --project .",
+        "start": "node --es-module-specifier-resolution=node ./build/index.js",
+        "test": "npm run lint && npm run compile && npm run start"
+    },
+    "author": "mbalsdon",
+    "license": "MIT",
+    "homepage": "https://github.com/mbalsdon/mor4",
+    "dependencies": {
+        "@types/winston": "^2.4.4",
+        "winston": "^3.9.0",
+        "winston-daily-rotate-file": "^4.7.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.3.1",
+        "@typescript-eslint/eslint-plugin": "^5.60.0",
+        "@typescript-eslint/parser": "^5.60.0",
+        "eslint": "^8.43.0",
+        "typescript": "^5.0.4"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
