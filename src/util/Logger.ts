@@ -1,12 +1,12 @@
-import MorConfig from './MorConfig.js';
+import MORConfig from './MORConfig.js';
 
-import * as winston from 'winston';
+import winston from 'winston';
 import 'winston-daily-rotate-file';
 
-const LEVEL = MorConfig.LOG_LEVEL || 'info';
-const LOG_FILENAME = MorConfig.LOG_FILENAME || './logs/bot_%DATE%.log';
-const DATE_PATTERN = MorConfig.LOG_DATE_PATTERN || 'YYYY-MM-DD';
-const ROTATE_TIME = MorConfig.LOG_ROTATE_TIME || '3d';
+const LEVEL = MORConfig.LOG_LEVEL || 'info';
+const LOG_FILEPATH = MORConfig.LOG_FILEPATH || './logs/bot_%DATE%.log';
+const DATE_PATTERN = MORConfig.LOG_DATE_PATTERN || 'YYYY-MM-DD';
+const ROTATE_TIME = MORConfig.LOG_ROTATE_TIME || '3d';
 const FORMAT = winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),
@@ -19,7 +19,7 @@ winston.loggers.add('logger', {
     transports: [
         new winston.transports.DailyRotateFile({
             level: LEVEL,
-            filename: LOG_FILENAME,
+            filename: LOG_FILEPATH,
             datePattern: DATE_PATTERN,
             maxFiles: ROTATE_TIME
         }),
