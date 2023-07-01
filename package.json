@@ -5,21 +5,25 @@
     "main": "index.js",
     "type": "module",
     "scripts": {
-        "lint": "./node_modules/.bin/eslint . --ext .ts --fix",
-        "compile": "tsc --project .",
-        "start": "node --es-module-specifier-resolution=node ./build/index.js",
-        "test": "npm run lint && npm run compile && npm run start"
+        "compile": "./node_modules/.bin/eslint . --ext .ts --fix && tsc --project .",
+        "start": "npm run compile && node --es-module-specifier-resolution=node ./build/index.js",
+        "update_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/UpdateScores.js",
+        "port_mor3_users": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/PortMOR3Users.js",
+        "port_mor3_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/PortMOR3Scores.js"
     },
     "author": "mbalsdon",
     "license": "MIT",
     "homepage": "https://github.com/mbalsdon/mor4",
     "dependencies": {
-        "@types/winston": "^2.4.4",
+        "node-schedule": "^2.1.1",
+        "sqlite3": "^5.1.6",
         "winston": "^3.9.0",
         "winston-daily-rotate-file": "^4.7.1"
     },
     "devDependencies": {
         "@types/node": "^20.3.1",
+        "@types/node-schedule": "^2.1.0",
+        "@types/winston": "^2.4.4",
         "@typescript-eslint/eslint-plugin": "^5.60.0",
         "@typescript-eslint/parser": "^5.60.0",
         "eslint": "^8.43.0",

@@ -105,6 +105,8 @@ dist
 gcp_key.json
 # local data
 build
+data
+logs
 package-lock.json
 src/jobs/cache
 mor_config.json

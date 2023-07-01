@@ -1,7 +1,6 @@
-
-import { defined, sleep, OAuthToken, OsuRequestHeaders, OsuScoreType, OsuMod } from './util/Common.js';
-import MorConfig from './util/MorConfig.js';
-import { ConstructorError, TokenError } from './util/MorErrors.js';
+import { defined, sleep, OAuthToken, OsuRequestHeader, OsuScoreType, OsuMod } from './util/Common.js';
+import MORConfig from './util/MORConfig.js';
+import { ConstructorError, TokenError } from './util/MORErrors.js';
 
 import './util/Logger.js';
 import { loggers } from 'winston';
@@ -21,16 +20,16 @@ export default class OsuWrapper {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            client_id: MorConfig.OSU_API_CLIENT_ID,
-            client_secret: MorConfig.OSU_API_CLIENT_SECRET,
+            client_id: MORConfig.OSU_API_CLIENT_ID,
+            client_secret: MORConfig.OSU_API_CLIENT_SECRET,
             grant_type: 'client_credentials',
             scope: 'public'
         })
     };
 
-    private accessToken: string;
-    private accessTokenDuration: number;
-    private accessTokenAcquiryTime: number;
+    private _accessToken: string;
+    private _accessTokenDuration: number;
+    private _accessTokenAcquiryTime: number;
 
     /* ------------------------------------------------------------------ */
     /* ------------------------------PUBLIC------------------------------ */
@@ -58,6 +57,9 @@ export default class OsuWrapper {
      */
     public async getUsers (userIDs: string[]): Promise<any> {
         logger.debug(`OsuWrapper::getUsers - retrieving users [${userIDs}]`);
+        if (userIDs.length > 50) {
+            logger.warn(`OsuWrapper::getUsers - only up to 50 users can be retrieved at once! userIDs.length = ${userIDs.length}`);
+        }
 
         const url = new URL(`${OsuWrapper.API_URL}/users`);
         for (const ID of userIDs) {
@@ -75,9 +77,11 @@ export default class OsuWrapper {
     /**
      * Retrieve osu! score data.
      * @param {string} scoreID
+     * @param {number} maxRetries
+     * @param {number} baseSeconds
      * @returns {Promise<any>} [Score](https://osu.ppy.sh/docs/index.html#score)
      */
-    public async getScore (scoreID: string): Promise<any> {
+    public async getScore (scoreID: string, maxRetries = 3, baseSeconds = 3): Promise<any> {
         logger.debug(`OsuWrapper::getScore - retrieving score ${scoreID}`);
 
         const url = new URL(`${OsuWrapper.API_URL}/scores/osu/${scoreID}`);
@@ -88,7 +92,7 @@ export default class OsuWrapper {
         };
 
         await this.refreshToken();
-        return OsuWrapper.makeRequest(url, request);
+        return OsuWrapper.makeRequest(url, request, maxRetries, baseSeconds);
     }
 
     /**
@@ -97,7 +101,7 @@ export default class OsuWrapper {
      * @param {OsuScoreType} type
      * @returns {Promise<any>} [Score[]](https://osu.ppy.sh/docs/index.html#score)
      */
-    public async getUserScores (userID: string, type: OsuScoreType = 'best'): Promise<any> {
+    public async getUserScores (userID: string, type: OsuScoreType = OsuScoreType.BEST): Promise<any> {
         logger.debug(`OsuWrapper::getUserScores - retrieving ${type} scores for user ${userID}`);
 
         const url = new URL(`${OsuWrapper.API_URL}/users/${userID}/scores/${type}`);
@@ -132,12 +136,12 @@ export default class OsuWrapper {
 
     /**
      * Retrieve osu! beatmap attribute data.
-     * @param {string} beatmapID
+     * @param {number} beatmapID
      * @param {OsuMod[]} mods
      * @returns {Promise<any>} [BeatmapDifficultyAttributes](https://osu.ppy.sh/docs/index.html#beatmapdifficultyattributes)
      */
-    public async getBeatmapAttributes (beatmapID: string, mods: OsuMod[]): Promise<any> {
-        logger.debug(`OsuWrapper:getBeatmapAttributes - retrieving attributes for ${beatmapID} with mods [${mods}]`);
+    public async getBeatmapAttributes (beatmapID: number, mods: OsuMod[]): Promise<any> {
+        logger.debug(`OsuWrapper:getBeatmapAttributes - retrieving attributes for beatmap ${beatmapID} with mods [${mods}]`);
 
         const url = new URL(`${OsuWrapper.API_URL}/beatmaps/${beatmapID}/attributes`);
         const request: RequestInit = {
@@ -163,20 +167,20 @@ export default class OsuWrapper {
      * @param {OAuthToken} token
      */
     private constructor (token: OAuthToken) {
-        this.accessToken = token.access_token;
-        this.accessTokenDuration = token.expires_in;
-        this.accessTokenAcquiryTime = Math.floor(new Date().getTime() / 1000);
+        this._accessToken = token.access_token;
+        this._accessTokenDuration = token.expires_in;
+        this._accessTokenAcquiryTime = Math.floor(new Date().getTime() / 1000);
     }
 
     /**
      * Build standard osu!API request headers.
-     * @returns {OsuRequestHeaders}
+     * @returns {OsuRequestHeader}
      */
-    private buildHeaders (): OsuRequestHeaders {
+    private buildHeaders (): OsuRequestHeader {
         return {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${this.accessToken}`
+            Authorization: `Bearer ${this._accessToken}`
         };
     }
 
@@ -187,7 +191,7 @@ export default class OsuWrapper {
     private static async getAccessToken (): Promise<OAuthToken> {
         logger.debug('OsuWrapper::getAccessToken - retrieving access token...');
 
-        const token = await OsuWrapper.makeRequest(OsuWrapper.TOKEN_URL, OsuWrapper.TOKEN_REQUEST, 4);
+        const token = await OsuWrapper.makeRequest(OsuWrapper.TOKEN_URL, OsuWrapper.TOKEN_REQUEST, 4, 3);
         if (!defined(token)) {
             throw new TokenError('OsuWrapper::getAccessToken - failed to regenerate access token; is the osu!API down?');
         }
@@ -201,7 +205,7 @@ export default class OsuWrapper {
      */
     private async refreshToken (): Promise<void> {
         const currentTime = Math.floor(new Date().getTime() / 1000);
-        if (currentTime > this.accessTokenAcquiryTime + this.accessTokenDuration) {
+        if (currentTime > this._accessTokenAcquiryTime + this._accessTokenDuration) {
             logger.info('OsuWrapper::refreshToken - token expired! Attempting to refresh...');
 
             const token = await OsuWrapper.makeRequest(OsuWrapper.TOKEN_URL, OsuWrapper.TOKEN_REQUEST);
@@ -209,9 +213,9 @@ export default class OsuWrapper {
                 throw new TokenError('OsuWrapper::refreshToken - failed to regenerate access token; is the osu!API down?');
             }
 
-            this.accessToken = token.access_token;
-            this.accessTokenDuration = token.expires_in;
-            this.accessTokenAcquiryTime = currentTime;
+            this._accessToken = token.access_token;
+            this._accessTokenDuration = token.expires_in;
+            this._accessTokenAcquiryTime = currentTime;
         }
 
         return;
@@ -220,19 +224,20 @@ export default class OsuWrapper {
     /**
      * Make fetch request.
      * If request fails, attempt again up to specified number of tries.
-     * Uses exponential backoff to calculate time between requests with base of 3 seconds.
+     * Uses exponential backoff to calculate time between requests.
      * Return undefined if all attempted requests fail.
      * @param {URL} url
      * @param {RequestInit} request
      * @param {number} maxRetries
+     * @param {number} baseSeconds
      * @returns {Promise<any>}
      */
-    private static async makeRequest (url: URL, request: RequestInit, maxRetries = 3): Promise<any> {
+    private static async makeRequest (url: URL, request: RequestInit, maxRetries = 3, baseSeconds = 3): Promise<any> {
         let retries = 0;
-        let delaySec = 1;
+        let delayMs = MORConfig.OSU_API_COOLDOWN_MS;
 
         while (retries < maxRetries) {
-            await sleep(delaySec * 1000);
+            await sleep(delayMs);
             const response = await fetch(url, request);
 
             if (response.ok) {
@@ -240,9 +245,9 @@ export default class OsuWrapper {
             } else {
                 logger.warn(`OsuWrapper::makeRequest - received "${response.status} - ${response.statusText}"`);
                 ++retries;
-                delaySec = Math.pow(3, retries);
+                delayMs = Math.pow(baseSeconds, retries) * 1000;
                 if (retries < maxRetries) {
-                    logger.warn(`OsuWrapper::makeRequest - request failed; retrying in ${delaySec}s`);
+                    logger.warn(`OsuWrapper::makeRequest - request failed; retrying in ${delayMs}ms`);
                 }
             }
         }
