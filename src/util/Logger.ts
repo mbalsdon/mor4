@@ -3,10 +3,10 @@ import MORConfig from './MORConfig.js';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
 
-const LEVEL = MORConfig.LOG_LEVEL || 'info';
-const LOG_FILEPATH = MORConfig.LOG_FILEPATH || './logs/bot_%DATE%.log';
-const DATE_PATTERN = MORConfig.LOG_DATE_PATTERN || 'YYYY-MM-DD';
-const ROTATE_TIME = MORConfig.LOG_ROTATE_TIME || '3d';
+const LEVEL = MORConfig.LOG_LEVEL;
+const LOG_FILEPATH = MORConfig.LOG_FILEPATH;
+const DATE_PATTERN = MORConfig.LOG_DATE_PATTERN;
+const ROTATE_TIME = MORConfig.LOG_ROTATE_TIME;
 const FORMAT = winston.format.combine(
     winston.format.errors({ stack: true }),
     winston.format.timestamp(),

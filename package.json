@@ -9,12 +9,16 @@
         "start": "npm run compile && node --es-module-specifier-resolution=node ./build/index.js",
         "update_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/UpdateScores.js",
         "port_mor3_users": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/PortMOR3Users.js",
-        "port_mor3_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/PortMOR3Scores.js"
+        "port_mor3_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/PortMOR3Scores.js",
+        "move_and_update_mor4_users": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/MoveAndUpdateMOR4Users.js",
+        "move_and_update_mor4_scores": "npm run compile && node --es-module-specifier-resolution=node ./build/src/util/scripts/MoveAndUpdateMOR4Scores.js"
     },
     "author": "mbalsdon",
     "license": "MIT",
     "homepage": "https://github.com/mbalsdon/mor4",
     "dependencies": {
+        "@discordjs/rest": "^1.1.0",
+        "discord.js": "14.11.0",
         "node-schedule": "^2.1.1",
         "sqlite3": "^5.1.6",
         "winston": "^3.9.0",

@@ -1,16 +1,21 @@
+import Bot from './src/Bot.js';
+import MORConfig from './src/util/MORConfig.js';
 import DatabaseUpdater from './src/DatabaseUpdater.js';
 import JobManager from './src/JobManager.js';
 import { MORJob, MORJobKey } from './src/util/Common.js';
 
-const dbu = await DatabaseUpdater.build();
+const bot = await Bot.build(MORConfig.DB_FILEPATH);
+await bot.start();
+
+const dbu = await DatabaseUpdater.build(MORConfig.DB_FILEPATH);
 const jm = new JobManager();
 
 // Run at 00:00 (2001-09-08 00:00, 2001-09-09 00:00, 2001-09-10 00:00, ...)
 const removeDuplicateScores: MORJob = {
     [MORJobKey.NAME]: 'removeDuplicateScores',
     [MORJobKey.RULE]: '0 0 * * *',
-    [MORJobKey.CALLBACK]: () => {
-        dbu.removeDuplicateScores();
+    [MORJobKey.CALLBACK]: async () => {
+        await dbu.removeDuplicateScores();
     }
 };
 
@@ -18,8 +23,8 @@ const removeDuplicateScores: MORJob = {
 const getNewScores: MORJob = {
     [MORJobKey.NAME]: 'getNewScores',
     [MORJobKey.RULE]: '30 */1 * * *',
-    [MORJobKey.CALLBACK]: () => {
-        dbu.getNewScores();
+    [MORJobKey.CALLBACK]: async () => {
+        await dbu.getNewScores();
     }
 };
 
@@ -27,8 +32,8 @@ const getNewScores: MORJob = {
 const updateUsers: MORJob = {
     [MORJobKey.NAME]: 'updateUsers',
     [MORJobKey.RULE]: '*/5 * * * *',
-    [MORJobKey.CALLBACK]: () => {
-        dbu.updateUsers();
+    [MORJobKey.CALLBACK]: async () => {
+        await dbu.updateUsers();
     }
 };
 

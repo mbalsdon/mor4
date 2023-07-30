@@ -1,13 +1,13 @@
-import sqlite3 from 'sqlite3';
+import { JobCallback } from 'node-schedule';
+import OsuWrapper from '../OsuWrapper.js';
 
 import './Logger.js';
 import { loggers } from 'winston';
-import { JobCallback } from 'node-schedule';
 const logger = loggers.get('logger');
 
-/* ------------------------------------------------------------------ */
-/* ----------------------------FUNCTIONS----------------------------- */
-/* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
+/* --------------------------------------------------------------FUNCTIONS------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
 
 /**
  * Return true if x is undefined, false otherwise.
@@ -15,7 +15,16 @@ const logger = loggers.get('logger');
  * @returns {boolean}
  */
 export function defined (x: any): boolean {
-    return ((typeof x !== 'undefined') && (x !== 'undefined'));
+    return ((typeof x !== 'undefined') && (x !== undefined));
+}
+
+/**
+ * Return true if x is null, false otherwise.
+ * @param {any} x
+ * @returns {boolean}
+ */
+export function isNull (x: any): boolean {
+    return (x === null);
 }
 
 /**
@@ -89,7 +98,10 @@ export function stringToMORMod (s: string): MORMod {
  * @returns {MORMod}
  */
 export function convertOsuMods (mods: string[]): MORMod {
-    let pMods = mods.join().replaceAll(',', '');
+    // Sort the array for easy conversion to MORMod
+    const sortedMods = sortOsuMods(mods);
+
+    let pMods = sortedMods.join().replaceAll(',', '');
     pMods = pMods.replace(OsuMod.NC.toString(), OsuMod.DT.toString());
     pMods = pMods.replace(OsuMod.NF.toString(), '');
     pMods = pMods.replace(OsuMod.SO.toString(), '');
@@ -98,6 +110,44 @@ export function convertOsuMods (mods: string[]): MORMod {
     pMods = (pMods === '') ? 'NM' : pMods;
 
     return stringToMORMod(pMods);
+}
+
+/**
+ * Return sorted array of osu! mods.
+ * @param {string[]} mods
+ * @returns {void}
+ */
+export function sortOsuMods (mods: string[]): string[] {
+    const modOrder: string[] = [
+        OsuMod.NF,
+        OsuMod.EZ,
+        OsuMod.HD,
+        OsuMod.HR,
+        OsuMod.SD,
+        OsuMod.DT,
+        OsuMod.NC,
+        OsuMod.HT,
+        OsuMod.FL,
+        OsuMod.SO,
+        OsuMod.PF
+    ];
+
+    const sortedMods = [ ...mods ].filter((mod) => mod !== 'NM');
+    sortedMods.sort((a, b) => {
+        const aIdx = modOrder.indexOf(a);
+        const bIdx = modOrder.indexOf(b);
+        if (aIdx === -1 && bIdx === -1) {
+            return 0;
+        } else if (aIdx === -1) {
+            return 1;
+        } else if (bIdx === -1) {
+            return -1;
+        } else {
+            return aIdx - bIdx;
+        }
+    });
+
+    return sortedMods;
 }
 
 /**
@@ -123,27 +173,41 @@ export function affectsStarRating (mods: string[]): boolean {
 }
 
 /**
- * Return number of rows in database table.
- * @param {sqlite3.Database} db
- * @param {string} tableName
- * @returns {Promise<number>}
+ * Convert osu!API score to MORScore
+ * @param {any} osu [Score](https://osu.ppy.sh/docs/index.html#score)
+ * @param {OsuWrapper} osuScore
+ * @returns {Promise<MORScore>}
  */
-export function getRowCount (db: sqlite3.Database, tableName: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-        const sql = `SELECT COUNT(*) as count FROM ${tableName}`;
-        db.get(sql, (err, row: any) => {
-            if (err) {
-                logger.error(`DatabaseUpdater::getRowCount - failed to get; ${err.message}`);
-                reject(err);
-            }
-            resolve(row.count);
-        });
-    });
+export async function osuScoreToMORScore (osu: OsuWrapper, osuScore: any): Promise<MORScore> {
+    logger.debug(`Common::osuScoreToMORScore - converting osu! score "${osuScore.id}"...`);
+
+    const mods: string[] = osuScore.mods;
+    let starRating = osuScore.beatmap.difficulty_rating;
+    if (affectsStarRating(mods)) {
+        const difficultyAttributes = await osu.getBeatmapAttributes(osuScore.beatmap.id, mods.map((x: string) => stringToOsuMod(x)));
+        starRating = difficultyAttributes.attributes.star_rating;
+    }
+
+    const morScore: MORScore = {
+        [MORScoreKey.SCORE_ID]: osuScore.id,
+        [MORScoreKey.USER_ID]: osuScore.user.id,
+        [MORScoreKey.BEATMAP_ID]: osuScore.beatmap.id,
+        [MORScoreKey.USERNAME]: osuScore.user.username,
+        [MORScoreKey.BEATMAP]: getMORBeatmapString(osuScore),
+        [MORScoreKey.MODS]: mods.join().replaceAll(',', ''),
+        [MORScoreKey.PP]: osuScore.pp,
+        [MORScoreKey.ACCURACY]: osuScore.accuracy,
+        [MORScoreKey.STAR_RATING]: starRating,
+        [MORScoreKey.DATE]: osuScore.created_at,
+        [MORScoreKey.BEATMAP_IMAGE_URL]: osuScore.beatmapset.covers['list@2x']
+    };
+
+    return morScore;
 }
 
-/* ------------------------------------------------------------------ */
-/* ------------------------------TYPES------------------------------- */
-/* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
+/* ----------------------------------------------------------------TYPES--------------------------------------------------------------- */
+/* ------------------------------------------------------------------------------------------------------------------------------------ */
 
 /**
  * [OAuth2 Reference](https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/)
@@ -170,7 +234,7 @@ export type OsuRequestHeader = {
  */
 export enum OsuScoreType {
     BEST = 'best',
-    FIRSTS = 'firsts',
+    FIRST = 'firsts',
     RECENT = 'recent',
     PINNED = 'pinned'
 }
@@ -242,11 +306,6 @@ export enum MORMod {
 }
 
 /**
- * MOR database keys.
- */
-export type MORDatabaseKey = MORMod | MORDatabaseSpecialKey
-
-/**
  * MORUser keys.
  */
 export enum MORUserKey {
@@ -257,10 +316,14 @@ export enum MORUserKey {
     PP = 'pp',
     ACCURACY = 'accuracy',
     PLAYTIME = 'playtime',
+    PLAYCOUNT = 'playcount',
+    RANKED_SCORE = 'rankedScore',
+    MAX_COMBO = 'maxCombo',
+    REPLAYS_WATCHED = 'replaysWatched',
+    PFP_IMAGE_URL =  'pfpImageURL',
     TOP_1S = 'top1s',
     TOP_2S = 'top2s',
     TOP_3S = 'top3s',
-    PFP_IMAGE_URL =  'pfpImageURL',
     AUTOTRACK = 'autotrack'
 }
 
@@ -275,10 +338,14 @@ export type MORUser = {
     [MORUserKey.PP]: number
     [MORUserKey.ACCURACY]: number
     [MORUserKey.PLAYTIME]: number
+    [MORUserKey.PLAYCOUNT]: number
+    [MORUserKey.RANKED_SCORE]: number
+    [MORUserKey.MAX_COMBO]: number,
+    [MORUserKey.REPLAYS_WATCHED]: number
+    [MORUserKey.PFP_IMAGE_URL]: string
     [MORUserKey.TOP_1S]: number
     [MORUserKey.TOP_2S]: number
     [MORUserKey.TOP_3S]: number
-    [MORUserKey.PFP_IMAGE_URL]: string
     [MORUserKey.AUTOTRACK]: boolean
 }
 
@@ -288,6 +355,7 @@ export type MORUser = {
 export enum MORScoreKey {
     SCORE_ID = 'scoreID',
     USER_ID = 'userID',
+    BEATMAP_ID = 'beatmapID',
     USERNAME = 'username',
     BEATMAP = 'beatmap',
     MODS = 'mods',
@@ -304,6 +372,7 @@ export enum MORScoreKey {
 export type MORScore = {
     [MORScoreKey.SCORE_ID]: number
     [MORScoreKey.USER_ID]: number
+    [MORScoreKey.BEATMAP_ID]: number,
     [MORScoreKey.USERNAME]: string
     [MORScoreKey.BEATMAP]: string
     [MORScoreKey.MODS]: string
@@ -314,12 +383,18 @@ export type MORScore = {
     [MORScoreKey.BEATMAP_IMAGE_URL]: string
 }
 
+/**
+ * MORJob keys.
+ */
 export enum MORJobKey {
     NAME = 'name',
     RULE = 'rule',
     CALLBACK = 'callback'
 }
 
+/**
+ * MOR job.
+ */
 export type MORJob = {
     [MORJobKey.NAME]: string,
     [MORJobKey.RULE]: string,
