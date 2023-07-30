@@ -1,9 +1,10 @@
 import DatabaseUpdater from '../../DatabaseUpdater.js';
 
-if (process.argv.length < 3) {
-    throw new TypeError('Must supply MOR3 USERS sheet .csv filepath! Example: npm run port_mor3_users ./users.csv');
+if (process.argv.length < 4) {
+    throw new TypeError('Must supply .db filepath and MOR3 USERS sheet .csv filepath! Example: npm run port_mor3_users ./data/mor4.db ./users.csv');
 }
 
-const dbu = await DatabaseUpdater.build();
-const filepath = process.argv[2] as string;
-await dbu.portMOR3Users(filepath);
+const dbFilepath = process.argv[2] as string;
+const csvFilepath = process.argv[3] as string;
+const dbu = await DatabaseUpdater.build(dbFilepath);
+await dbu.portMOR3Users(csvFilepath);

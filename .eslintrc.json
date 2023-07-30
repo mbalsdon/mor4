@@ -1,6 +1,6 @@
 {
     "env": {
-        "es2021": true,
+        "es2022": true,
         "node": true
     },
     "extends": [
@@ -91,6 +91,12 @@
             {
                 "before": false,
                 "after": true
+            }
+        ],
+        "no-constant-condition": [
+            "error",
+            {
+                "checkLoops": false
             }
         ],
         "@typescript-eslint/explicit-function-return-type": "error",
