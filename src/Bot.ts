@@ -146,6 +146,9 @@ export default class Bot {
                 .addStringOption((option) => option.setName('username')
                     .setDescription('The username of the player')
                     .setRequired(true))
+                .addBooleanOption((option) => option.setName('remove_scores')
+                    .setDescription('Whether or not to remove the user\'s scores')
+                    .setRequired(true))
                 .setDMPermission(false)
                 .setDefaultMemberPermissions(moderatorPermFlags),
             new SlashCommandBuilder()
@@ -539,8 +542,10 @@ export default class Bot {
         const levelString = `${osuUser.statistics.level.current}.${osuUser.statistics.level.progress}`;
         const rankedScoreString = osuUser.statistics.ranked_score.toLocaleString();
         const totalPlaytimeString = Math.round(osuUser.statistics.play_time / 3600).toLocaleString();
-        const playcountString = `${osuUser.statistics.play_count.toLocaleString()} (${osuUser.monthly_playcounts.slice(-1)[0].count.toLocaleString()} this month)`;
-        const replaysWatchedString = `${osuUser.statistics.replays_watched_by_others.toLocaleString()} (${osuUser.replays_watched_counts.slice(-1)[0].count.toLocaleString()} this month)`;
+        const monthPlaycount = (osuUser.monthly_playcounts.length === 0) ? 'N/A' : osuUser.monthly_playcounts.slice(-1)[0].count.toLocaleString();
+        const playcountString = `${osuUser.statistics.play_count.toLocaleString()} (${monthPlaycount} this month)`;
+        const monthReplaysWatched = (osuUser.replays_watched_counts.length === 0) ? 'N/A' : osuUser.replays_watched_counts.slice(-1)[0].count.toLocaleString();
+        const replaysWatchedString = `${osuUser.statistics.replays_watched_by_others.toLocaleString()} (${monthReplaysWatched} this month)`;
         const joinedString = `${new Date(osuUser.join_date).toLocaleString('default', { month: 'long' })} ${new Date(osuUser.join_date).toLocaleString('default', { year: 'numeric' })}`;
         const topsString = `${dbUser[MORUserKey.TOP_1S]}/${dbUser[MORUserKey.TOP_2S]}/${dbUser[MORUserKey.TOP_3S]}`;
 
@@ -548,7 +553,7 @@ export default class Bot {
         desc = desc + `▸ ${countryCodeEmoji} **Country Rank:** ${countryRankString}\n`;
         desc = desc + `▸ :globe_with_meridians: **Global Rank:** ${globalRankString}\n`;
         desc = desc + `▸ :mountain_snow: **Peak Rank:** ${peakRankString}\n`;
-        desc = desc + `▸ :famer: **PP:** ${ppString}\n`;
+        desc = desc + `▸ :farmer: **PP:** ${ppString}\n`;
         desc = desc + `▸ :dart: **Accuracy:** ${accuracyString}\n\n`;
 
         desc = desc + `▸ :reminder_ribbon: **Badges:** ${badgesString}\n`;
@@ -652,7 +657,8 @@ export default class Bot {
      */
     private async removeUserCmd (interaction: ChatInputCommandInteraction<CacheType>): Promise<void> {
         const username = interaction.options.getString('username') as string;
-        logger.debug(`Bot::removeUserCmd - removing user ${username} from database...`);
+        const removeScores = interaction.options.getBoolean('remove_scores') as boolean;
+        logger.debug(`Bot::removeUserCmd - removing user ${username} from database... (removeScores = ${removeScores})`);
 
         const embed = new EmbedBuilder().setColor(MORConfig.DISCORD_BOT_EMBED_COLOR);
         const dbUsers = await this._dbm.getUsers();
@@ -665,6 +671,9 @@ export default class Bot {
         dbUser = dbUser as MORUser;
 
         await this._dbm.removeUser(dbUser[MORUserKey.USER_ID]);
+        if (removeScores) {
+            await this._dbm.removeUserScores(dbUser[MORUserKey.USER_ID]);
+        }
 
         const globalRankString = (isNull(dbUser[MORUserKey.GLOBAL_RANK]) ? 'N/A' : `#${dbUser[MORUserKey.GLOBAL_RANK].toLocaleString()}`);
         const ppString = `${Math.round(dbUser[MORUserKey.PP]).toLocaleString()}pp`;

@@ -197,10 +197,10 @@ export default class DatabaseManager {
     /**
      * Return array of scoreIDs of duplicate scores.
      * @param {string} tableName
-     * @returns {Promise<MORScore[MORScoreKey.SCORE_ID][]>}
+     * @returns {Promise<MORScore[]>}
      */
-    public async getDuplicateScoreIDs (tableName: string): Promise<MORScore[MORScoreKey.SCORE_ID][]> {
-        logger.debug(`DatabaseManager::getDuplicateScoreIDs - searching table ${tableName} from "${this._filename}" for duplicate scores...`);
+    public async getDuplicateScores (tableName: string): Promise<MORScore[]> {
+        logger.debug(`DatabaseManager::getDuplicateScores - searching table ${tableName} from "${this._filename}" for duplicate scores...`);
 
         return new Promise((resolve, reject) => {
             const sql = `SELECT t1.*
@@ -219,11 +219,10 @@ export default class DatabaseManager {
                     WHERE t1.${MORScoreKey.SCORE_ID} <> t2.${MORScoreKey.SCORE_ID};`;
             this._database.all(sql, (err, rows: MORScore[]) => {
                 if (err) {
-                    logger.error(`DatabaseManager::getDuplicateScoreIDs - failed to retrieve from "${this._filename}"! (${err.name}: ${err.message})`);
+                    logger.error(`DatabaseManager::getDuplicateScores - failed to retrieve from "${this._filename}"! (${err.name}: ${err.message})`);
                     reject(err);
                 }
-                const scoreIDs = rows.map((row) => row[MORScoreKey.SCORE_ID]);
-                resolve(scoreIDs);
+                resolve(rows);
             });
         });
     }
@@ -503,6 +502,29 @@ export default class DatabaseManager {
                 }
                 resolve();
             });
+        });
+    }
+
+    /**
+     * Remove scores set by user.
+     * @param {MORUser[MORUserKey.USER_ID]} userID
+     * @returns {Promise<void>}
+     */
+    public async removeUserScores (userID: MORUser[MORUserKey.USER_ID]): Promise<void> {
+        logger.debug(`DatabaseManager::removeUserScores - removing scores set by ${userID} from "${this._filename}"...`);
+
+        return new Promise((resolve, reject) => {
+            for (const key in MORMod) {
+                const sql = `DELETE FROM ${key} WHERE ${MORUserKey.USER_ID} = ?`;
+                const params = [ userID ];
+                this._database.run(sql, params, (err) => {
+                    if (err) {
+                        logger.error(`DatabaseManager::removeUserScores - failed to remove scores by ${userID} from "${this._filename}"! (${err.name}: ${err.message})`);
+                        reject(err);
+                    }
+                });
+            }
+            resolve();
         });
     }
 

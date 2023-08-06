@@ -28,10 +28,10 @@ const getNewScores: MORJob = {
     }
 };
 
-// Run at every 5th minute (01:00, 01:05, 01:10, ...)
+// Run every 3 minutes (01:00, 01:03, 01:06, ...)
 const updateUsers: MORJob = {
     [MORJobKey.NAME]: 'updateUsers',
-    [MORJobKey.RULE]: '*/5 * * * *',
+    [MORJobKey.RULE]: '*/3 * * * *',
     [MORJobKey.CALLBACK]: async () => {
         await dbu.updateUsers();
     }
