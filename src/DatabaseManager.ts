@@ -506,6 +506,29 @@ export default class DatabaseManager {
         });
     }
 
+    /**
+     * Remove scores set by user.
+     * @param {MORUser[MORUserKey.USER_ID]} userID
+     * @returns {Promise<void>}
+     */
+    public async removeUserScores (userID: MORUser[MORUserKey.USER_ID]): Promise<void> {
+        logger.debug(`DatabaseManager::removeUserScores - removing scores set by ${userID} from "${this._filename}"...`);
+
+        return new Promise((resolve, reject) => {
+            for (const key in MORMod) {
+                const sql = `DELETE FROM ${key} WHERE ${MORUserKey.USER_ID} = ?`;
+                const params = [ userID ];
+                this._database.run(sql, params, (err) => {
+                    if (err) {
+                        logger.error(`DatabaseManager::removeUserScores - failed to remove scores by ${userID} from "${this._filename}"! (${err.name}: ${err.message})`);
+                        reject(err);
+                    }
+                });
+            }
+            resolve();
+        });
+    }
+
     /* ------------------------------------------------------------------------------------------------------------------------------------ */
     /* ---------------------------------------------------------------PRIVATE-------------------------------------------------------------- */
     /* ------------------------------------------------------------------------------------------------------------------------------------ */

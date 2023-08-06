@@ -54,7 +54,8 @@ export default class DatabaseUpdater {
             const userPinned = await this._osu.getUserScores(userIDString, OsuScoreType.PINNED);
 
             for (const userScore of [ ...userTops, ...userFirsts, ...userRecents, ...userPinned ]) {
-                if (!this._dbm.scoreExistsInTable(userScore.id, convertOsuMods(userScore.mods))) {
+                const scoreExists = await this._dbm.scoreExistsInTable(userScore.id, convertOsuMods(userScore.mods));
+                if (!scoreExists) {
                     const dbScore = await osuScoreToMORScore(this._osu, userScore);
                     await this._dbm.insertScore(dbScore);
                 } else {
@@ -164,9 +165,17 @@ export default class DatabaseUpdater {
 
         const dbUsers = await this._dbm.getUsers();
 
+        const modsToScores: { [key: string]: MORScore[] } = {};
+        for (const key in MORMod) {
+            modsToScores[key] = await this._dbm.getTableScores(key);
+            (modsToScores[key] as MORScore[]).sort((a, b) => b[MORScoreKey.PP] - a[MORScoreKey.PP]);
+            modsToScores[key] = (modsToScores[key] as MORScore[]).slice(0, 3);
+        }
+
         // Update user data - endpoint only supports 50 at a time so we chunk the requests
         for (let i = 0; i < dbUsers.length; i += 50) {
             const userIDChunk = dbUsers.map((x) => x[MORUserKey.USER_ID].toString()).slice(i, i + 50);
+            logger.info(`DatabaseUpdater::updateUsers - updating users: ${userIDChunk}`);
             const response = await this._osu.getUsers(userIDChunk);
             const osuUserChunk = response.users;
 
@@ -175,6 +184,28 @@ export default class DatabaseUpdater {
                 if (!defined(dbUser)) {
                     logger.error(`DatabaseUpdater::updateUsers - could not find database user ${osuUser.id} in "${this._dbm.filename}" - skipping... This should never happen!`);
                     continue;
+                }
+
+                let top1s = 0;
+                let top2s = 0;
+                let top3s = 0;
+
+                for (const key of Object.keys(modsToScores)) {
+                    const scores = modsToScores[key] as MORScore[];
+                    for (let i = 0; i < scores.length; ++i) {
+                        const userID = (scores[i] as MORScore)[MORScoreKey.USER_ID];
+                        if (userID !== osuUser.id) {
+                            continue;
+                        } else if (i === 0) {
+                            ++top1s;
+                        } else if (i === 1) {
+                            ++top2s;
+                        } else if (i === 2) {
+                            ++top3s;
+                        } else {
+                            throw new RangeError(`DatabaseUpdater::updateUsers - i=${i}; this should never happen!`);
+                        }
+                    }
                 }
 
                 const updatedUser: MORUser = {
@@ -190,13 +221,12 @@ export default class DatabaseUpdater {
                     [MORUserKey.MAX_COMBO]: osuUser.statistics_rulesets.osu.maximum_combo,
                     [MORUserKey.REPLAYS_WATCHED]: osuUser.statistics_rulesets.osu.replays_watched_by_others,
                     [MORUserKey.PFP_IMAGE_URL]: osuUser.avatar_url,
-                    [MORUserKey.TOP_1S]: (dbUser as MORUser)[MORUserKey.TOP_1S],
-                    [MORUserKey.TOP_2S]: (dbUser as MORUser)[MORUserKey.TOP_2S],
-                    [MORUserKey.TOP_3S]: (dbUser as MORUser)[MORUserKey.TOP_3S],
+                    [MORUserKey.TOP_1S]: top1s,
+                    [MORUserKey.TOP_2S]: top2s,
+                    [MORUserKey.TOP_3S]: top3s,
                     [MORUserKey.AUTOTRACK]: (dbUser as MORUser)[MORUserKey.AUTOTRACK]
                 };
 
-                logger.info(`DatabaseUpdater::updateUsers - updating user ${osuUser.id}...`);
                 await this._dbm.updateUser(updatedUser);
             }
         }
